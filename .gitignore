@@ -1,0 +1,6 @@
+*.csv
+*.pem
+*.ipynb_checkpoints/
+*.html
+google_api.py
+google_api.pyc
