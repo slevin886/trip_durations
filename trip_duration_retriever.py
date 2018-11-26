@@ -6,8 +6,10 @@ import datetime
 import os.path
 from google_api import PASSWORD
 
+# Replace with the coordinates of your own home and work
 HOME = '42.339165, -71.152060'
 WORK = '42.504682, -71.244258'
+# Replace PASSWORD with your own Google API password
 PWORD = PASSWORD
 PATH = './commute_info.csv'
 
