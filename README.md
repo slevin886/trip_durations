@@ -1,5 +1,7 @@
 # Route Optimization
 
-The 'trip_retriever' script is currently running on an EC2 collecting data (duration & route) every 5 minutes of my morning and evening commutes using the Google Maps API. I plan to identify the optimal commute given an 8 hour workday and varying parameters (tolerance for route variation, flexibility for morning departure time, etc.). The script began running on November 1st, 2018. 
+I used the 'trip_retriever' script as a cron job on an EC2 to collect data (duration & route) every 5 minutes for my morning and evening commutes using the Google Maps API (over 96 days). 'commute_analyzer.py' can be run from the command line to (currently) clean the data (adjust for daylight savings, etc.) and produce two interactive html plots showing mean commute duration every 5 minutes (w/ 5th & 95th percentiles to illustrate variation).
 
-The jupyter notebook provides a script for the initial exploratory analysis and visualizations.
+To use the code, a few small changes would be necessary (for example, changing the coordinates in 'trip_retriever', getting a google api key)- I have tried to annotate where these changes would be needed in the code. This project is ongoing.
+
+
