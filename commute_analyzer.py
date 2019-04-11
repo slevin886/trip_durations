@@ -85,43 +85,71 @@ def time_aggregator(df):
     return final[0], final[1]
 
 
-def plot_maker(df, which_commute):
-    MAX_TIME = df['duration_in_traffic']['perc_95'].max()
+def mean_commute_time_plot(morning, evening, beg_range=25, end_range=60):
+    """Makes a plot with two buttons to toggle between morning and
+       evening commutes. 'beg_range' and 'end_range' toggle the yaxis for
+       a clearer plot"""
 
-    MIN_TIME = df['duration_in_traffic']['perc_5'].min()
+    # Removing seconds for aesthetics
+    morning['hour_min'] = morning['hour_min'].astype(str).str[:-3]
+    evening['hour_min'] = evening['hour_min'].astype(str).str[:-3]
+    traces = []
 
-    trace0 = go.Scatter(x=df['hour_min'],
-                        y=df['duration_in_traffic']['mean'],
-                        line=dict(color='black', width=3),
-                        name='Average Time'
-                        )
+    updatemenus = [dict(type="buttons",
+                        direction='left', pad={'r': 10, 't': 10},
+                        showactive=True, x=0,
+                        xanchor='left', y=1.25,
+                        yanchor='top', buttons=[])]
 
-    trace1 = go.Scatter(x=df['hour_min'],
-                        y=df['duration_in_traffic']['perc_95'],
-                        line=dict(color='orange'),
-                        name='95th Percentile',
-                        showlegend=False
-                        )
+    PLOT_NAMES = ['Morning', 'Evening']
 
-    trace2 = go.Scatter(x=df['hour_min'],
-                        y=df['duration_in_traffic']['perc_5'],
-                        line=dict(color='orange'),
-                        name='5th Percentile',
-                        fill='tonexty',
-                        mode='lines',
-                        showlegend=False)
+    for num, df in enumerate([morning, evening]):
+        viz = True
+        if num == 1:
+            viz = False
 
-    data = [trace0, trace1, trace2]
+        traces.append(go.Scatter(
+            x=df['hour_min'],
+            y=df['duration_in_traffic']['mean'],
+            line=dict(color='black', width=3, dash='dash'),
+            name='Average {} Commute'.format(PLOT_NAMES[num]),
+            visible=viz))
 
-    layout = go.Layout(title='Average Commute Time',
-                       xaxis=dict(title='Time of Day'),
-                       yaxis=dict(title='Minutes', range=[MIN_TIME - 5, MAX_TIME + 5]))
+        traces.append(go.Scatter(x=df['hour_min'],
+                                 y=df['duration_in_traffic']['perc_95'],
+                                 line=dict(color='rgb(202,225,255)'),
+                                 name='95th Percentile',
+                                 showlegend=False,
+                                 visible=viz))
 
-    fig = go.Figure(data=data, layout=layout)
+        traces.append(go.Scatter(x=df['hour_min'],
+                                 y=df['duration_in_traffic']['perc_5'],
+                                 line=dict(color='rgb(202,225,255)'),
+                                 name='5th Percentile',
+                                 fill='tonexty',
+                                 mode='lines',
+                                 showlegend=False,
+                                 visible=viz))
 
-    py.offline.plot(fig, filename='{}.html'.format(which_commute),
-                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'],
-                                  showLink=False))
+        updatemenus[0]['buttons'].append(dict(
+            label='{} Commute'.format(PLOT_NAMES[num]),
+            method='update',
+            args=[{'visible':
+                   ([True] * 3) + ([False] * 3) if num == 0 else ([False] * 3) + ([True] * 3),
+                   'yaxis':dict(title='Minutes in the {}'.format(PLOT_NAMES[num])),
+                   }, ]))
+
+    layout = go.Layout(
+        updatemenus=list(updatemenus),
+        legend=dict(x=0, y=1),
+        xaxis=dict(tickangle=45, mirror=True, showline=True),
+        yaxis=dict(title='Minutes', range=[beg_range, end_range])
+
+    )
+
+    py.offline.plot({'data': traces, 'layout': layout},
+                    filename='mean_commute_times.html',
+                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'], showLink=False))
 
 
 def main():
@@ -130,8 +158,7 @@ def main():
     df['distance'] = df['distance'].apply(distance_conversion)
     df = remove_weekends(df)
     evening, morning = time_aggregator(df)
-    plot_maker(evening, 'evening')
-    plot_maker(morning, 'morning')
+    mean_commute_time_plot(morning, evening)
 
 
 if __name__ == '__main__':

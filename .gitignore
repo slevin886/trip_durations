@@ -4,3 +4,4 @@
 *.html
 google_api.py
 google_api.pyc
+/venv
