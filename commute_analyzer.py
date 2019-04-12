@@ -152,6 +152,73 @@ def mean_commute_time_plot(morning, evening, beg_range=25, end_range=60):
                     config=dict(modeBarButtonsToRemove=['sendDataToCloud'], showLink=False))
 
 
+def daily_commute_time_plot(df, yaxismax=100):
+    """Plots average daily commute times and returns interactive html and
+       prints standard deviations for morning & evening to console. Excludes
+       weekends & holidays and plots them as dashed lines"""
+    df['date'] = df['time'].dt.date
+    daily = df.groupby(['date', 'is_morning'], as_index=False)['duration_in_traffic'].mean()
+
+    # Reindexing to account for weekends/holidays
+    timeindex = pd.date_range(start=daily['date'].min(), end=daily['date'].max())
+
+    morning = daily.loc[daily['is_morning'] == 1].drop('is_morning', axis=1).copy()
+    morning = morning.set_index('date').reindex(timeindex)
+    print('Standard Deviation of Morning Commute Time: ', morning.std())
+
+    evening = daily.loc[daily['is_morning'] == 0].drop('is_morning', axis=1).copy()
+    evening = evening.set_index('date').reindex(timeindex)
+    print('Standard Deviation of Evening Commute Time: ', evening.std())
+
+    # Rolling Average of Total Daily Commute Times (excluding weekends/holidays)
+    rolling_avg = daily.groupby('date')['duration_in_traffic'].sum().rolling(5).mean()
+    rolling_avg = rolling_avg.reindex(timeindex)
+
+    # Individual lines on chart
+    trace0 = go.Scatter(x=morning.index,
+                        y=morning['duration_in_traffic'].interpolate(),
+                        showlegend=False,
+                        line=dict(dash='dash', color='orange'),
+                        hoverinfo='none')
+
+    trace1 = go.Scatter(x=morning.index,
+                        y=morning['duration_in_traffic'],
+                        name='Avg. Morning Commute Time',
+                        line=dict(color='orange'))
+
+    trace2 = go.Scatter(x=evening.index,
+                        y=evening['duration_in_traffic'].interpolate(),
+                        showlegend=False,
+                        line=dict(dash='dash', color='blue'),
+                        hoverinfo='none')
+
+    trace3 = go.Scatter(x=evening.index,
+                        y=evening['duration_in_traffic'],
+                        name='Avg. Evening Commute Time',
+                        line=dict(color='blue'))
+
+    trace4 = go.Scatter(x=rolling_avg.index,
+                        y=rolling_avg.interpolate(),
+                        hoverinfo='none',
+                        showlegend=False,
+                        line=dict(color='purple', dash='dash'))
+
+    trace5 = go.Scatter(x=rolling_avg.index,
+                        y=rolling_avg.values,
+                        name='Total Time (Rolling Avg.)',
+                        line=dict(color='purple'))
+
+    layout = go.Layout(legend=dict(x=1, y=1.1, xanchor='right'),
+                       yaxis=dict(title='Minutes', range=[0, yaxismax]),
+                       xaxis=dict(mirror=True, showline=True))
+
+    py.offline.plot({'data': [trace0, trace1, trace2, trace3, trace4, trace5],
+                     'layout': layout},
+                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'],
+                                showLink=False),
+                    filename='./daily_commute.html')
+
+
 def main():
     df = time_date_adjustments()
     df['duration_in_traffic'] = df['duration_in_traffic'].apply(duration_clean)
@@ -159,6 +226,7 @@ def main():
     df = remove_weekends(df)
     evening, morning = time_aggregator(df)
     mean_commute_time_plot(morning, evening)
+    daily_commute_time_plot(df)
 
 
 if __name__ == '__main__':
