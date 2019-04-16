@@ -15,8 +15,11 @@ PATH = './commute_info.csv'
 
 
 def commute_time_calculator(home, work, api_key):
-    """The coordinate for start and end should be 'latitude, longitude'
-        as one unified string each, hours for direction are UTC for commute"""
+    """Pings google API and returns commute information.
+    The coordinate for start and end should be 'latitude, longitude'
+    as one unified string each, hours for direction are UTC for commute.
+    Maps API defaults to 'best guess' for traffic duration, a combination of historical
+    averages and live traffic information."""
     time_now = datetime.datetime.now()
     if time_now.hour < 18:
         start_coord = home
