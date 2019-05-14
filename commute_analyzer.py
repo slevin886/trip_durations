@@ -2,10 +2,10 @@
 
 import pandas as pd
 from pandas.tseries.holiday import USFederalHolidayCalendar
-import plotly as py
-import plotly.graph_objs as go
 import re
 import datetime
+from plots import (mean_commute_time_plot, daily_commute_time_plot, lost_time_plot,
+                   commute_distance_variation_plot, total_commute_minutes_plot)
 
 # TODO: add assertions/tests, more flexibility for when it might be implemented in the future, additional statistics
 
@@ -86,136 +86,7 @@ def time_aggregator(df):
     return final[0], final[1]
 
 
-def mean_commute_time_plot(morning, evening, beg_range=25, end_range=60):
-    """Makes a plot with two buttons to toggle between morning and
-       evening commutes. 'beg_range' and 'end_range' toggle the yaxis for
-       a clearer plot"""
-    # Removing seconds for aesthetics for axis labels
-    morning['hour_min'] = morning['hour_min'].astype(str).str[:-3]
-    evening['hour_min'] = evening['hour_min'].astype(str).str[:-3]
-    traces = []
-
-    updatemenus = [dict(type="buttons",
-                        direction='left', pad={'r': 10, 't': 10},
-                        showactive=True, x=0,
-                        xanchor='left', y=1.25,
-                        yanchor='top', buttons=[])]
-
-    PLOT_NAMES = ['Morning', 'Evening']
-
-    for num, df in enumerate([morning, evening]):
-        viz = True
-        if num == 1:
-            viz = False
-
-        traces.append(go.Scatter(x=df['hour_min'],
-                                 y=df['duration_in_traffic']['mean'],
-                                 line=dict(color='black', width=3, dash='dash'),
-                                 name='Average {} Commute'.format(PLOT_NAMES[num]),
-                                 visible=viz))
-
-        traces.append(go.Scatter(x=df['hour_min'],
-                                 y=df['duration_in_traffic']['perc_95'],
-                                 line=dict(color='rgb(202,225,255)'),
-                                 name='95th Percentile',
-                                 showlegend=False,
-                                 visible=viz))
-
-        traces.append(go.Scatter(x=df['hour_min'],
-                                 y=df['duration_in_traffic']['perc_5'],
-                                 line=dict(color='rgb(202,225,255)'),
-                                 name='5th Percentile',
-                                 fill='tonexty',
-                                 mode='lines',
-                                 showlegend=False,
-                                 visible=viz))
-
-        updatemenus[0]['buttons'].append(dict(
-            label='{} Commute'.format(PLOT_NAMES[num]),
-            method='update',
-            args=[{'visible':
-                   ([True] * 3) + ([False] * 3) if num == 0 else ([False] * 3) + ([True] * 3),
-                   'yaxis':dict(title='Minutes in the {}'.format(PLOT_NAMES[num])),
-                   }, ]))
-
-    layout = go.Layout(
-        updatemenus=list(updatemenus),
-        legend=dict(x=0, y=1),
-        xaxis=dict(tickangle=45, mirror=True, showline=True),
-        yaxis=dict(title='Minutes', range=[beg_range, end_range])
-
-    )
-
-    py.offline.plot({'data': traces, 'layout': layout},
-                    filename='mean_commute_times.html',
-                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'], showLink=False))
-
-
-def daily_commute_time_plot(df, yaxismax=100):
-    """Plots average daily commute times and returns interactive html.
-    Excludes weekends & holidays and plots them as dashed lines"""
-    df['date'] = df['time'].dt.date
-    daily = df.groupby(['date', 'is_morning'], as_index=False)['duration_in_traffic'].mean()
-
-    # Reindexing to account for weekends/holidays
-    timeindex = pd.date_range(start=daily['date'].min(), end=daily['date'].max())
-
-    morning = daily.loc[daily['is_morning'] == 1].drop('is_morning', axis=1).copy()
-    morning = morning.set_index('date').reindex(timeindex)
-
-    evening = daily.loc[daily['is_morning'] == 0].drop('is_morning', axis=1).copy()
-    evening = evening.set_index('date').reindex(timeindex)
-
-    # Rolling Average of Total Daily Commute Times (excluding weekends/holidays)
-    rolling_avg = daily.groupby('date')['duration_in_traffic'].sum().rolling(5).mean()
-    rolling_avg = rolling_avg.reindex(timeindex)
-
-    # Individual lines on chart
-    trace0 = go.Scatter(x=morning.index,
-                        y=morning['duration_in_traffic'].interpolate(),
-                        showlegend=False,
-                        line=dict(dash='dash', color='orange'),
-                        hoverinfo='none')
-
-    trace1 = go.Scatter(x=morning.index,
-                        y=morning['duration_in_traffic'],
-                        name='Avg. Morning Commute Time',
-                        line=dict(color='orange'))
-
-    trace2 = go.Scatter(x=evening.index,
-                        y=evening['duration_in_traffic'].interpolate(),
-                        showlegend=False,
-                        line=dict(dash='dash', color='blue'),
-                        hoverinfo='none')
-
-    trace3 = go.Scatter(x=evening.index,
-                        y=evening['duration_in_traffic'],
-                        name='Avg. Evening Commute Time',
-                        line=dict(color='blue'))
-
-    trace4 = go.Scatter(x=rolling_avg.index,
-                        y=rolling_avg.interpolate(),
-                        hoverinfo='none',
-                        showlegend=False,
-                        line=dict(color='purple', dash='dash'))
-
-    trace5 = go.Scatter(x=rolling_avg.index,
-                        y=rolling_avg.values,
-                        name='Total Time (Rolling Avg.)',
-                        line=dict(color='purple'))
-
-    layout = go.Layout(legend=dict(x=1, y=1.1, xanchor='right'),
-                       yaxis=dict(title='Minutes', range=[0, yaxismax]),
-                       xaxis=dict(mirror=True, showline=True))
-
-    py.offline.plot({'data': [trace0, trace1, trace2, trace3, trace4, trace5],
-                     'layout': layout},
-                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'],
-                                showLink=False),
-                    filename='./daily_commute.html')
-
-
-def total_commute_minutes_plot(morning, evening):
+def merge_morning_evening_data(morning, evening):
     """Merges morning and evening data, returns the merged data set, and plots
     the 95% intervals for total commute time given departure times at 8 hour spreads"""
     morning['merge'] = morning['hour_min'].astype(str).str[:5].str.replace(':', '.').astype(float) + 8
@@ -226,88 +97,7 @@ def total_commute_minutes_plot(morning, evening):
     merged['total_5'] = merged['duration_in_traffic_x']['perc_5'] + merged['duration_in_traffic_y']['perc_5']
     merged['total_median'] = merged['duration_in_traffic_x']['median'] + merged['duration_in_traffic_y']['median']
     merged['xlabels'] = merged['hour_min_x'].astype(str).str[:-3] + '-' + merged['hour_min_y'].astype(str).str[:-3]
-
-    trace0 = go.Scatter(x=merged['xlabels'],
-                        y=merged['total_avg'],
-                        line=dict(color='black', width=3, dash='dash'),
-                        name='Avg. Total Commute Time')
-
-    trace1 = go.Scatter(x=merged['xlabels'],
-                        y=merged['total_95'],
-                        line=dict(color='rgb(140,225,200)'),
-                        showlegend=False,
-                        name='95th Percentile')
-
-    trace2 = go.Scatter(x=merged['xlabels'],
-                        y=merged['total_5'],
-                        line=dict(color='rgb(140,225,200)'),
-                        name='5th Percentile',
-                        fill='tonexty',
-                        showlegend=False,
-                        mode='lines')
-
-    layout = go.Layout(legend=dict(x=0, y=1.1, xanchor='left'),
-                       yaxis=dict(title='Daily Commute Minutes', range=[40, 100]),
-                       xaxis=dict(tickangle=45,
-                                  mirror=True,
-                                  showline=True,
-                                  ))
-
-    py.offline.plot({'data': [trace0, trace1, trace2],
-                     'layout': layout},
-                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'],
-                                showLink=False, displayModeBar=False,),
-
-                    filename='./total_commute_minutes.html')
     return merged
-
-
-def lost_time_plot(merged):
-    """Calculates lost time based on average differences with minimum time and plots
-    difference on daily and annual basis"""
-    minimum_avg_time = merged['total_avg'].min()
-    merged['difference_w_min'] = merged['total_avg'] - minimum_avg_time
-
-    trace0 = go.Bar(x=merged['xlabels'],
-                    y=merged['difference_w_min'],
-                    name='Minutes Lost',
-                    marker=dict(color='#B0171F'))
-
-    trace1 = go.Bar(x=merged['xlabels'],
-                    y=(merged['difference_w_min'] / (60 * 24)) * 5 * 52,
-                    visible=False,
-                    name='Days Lost',
-                    marker=dict(color='#DC143C'))
-
-    updatemenus = list([
-        dict(type="buttons",
-             direction='left',
-             pad={'r': 10, 't': 10},
-             x=0, xanchor='left', y=1.25,
-             yanchor='top',
-             active=0,
-             buttons=list([
-                 dict(label='Daily Loss',
-                      method='update',
-                      args=[{'visible': [True, False]},
-                            {'yaxis': {'title': 'Mean <b>Minutes</b> Lost <i>per Day</i>'}}]),
-                 dict(label='Annual Loss',
-                      method='update',
-                      args=[{'visible': [False, True]},
-                            {'yaxis': {'title': 'Mean <b>Days</b> Lost <i>per Year</i>'}}])
-             ]))])
-
-    layout = go.Layout(xaxis=dict(tickangle=45,
-                                  mirror=True,
-                                  showline=True,),
-                       updatemenus=updatemenus,
-                       yaxis=dict(title='Mean <b>Minutes</b> Lost <i>per Day</i>'))
-
-    py.offline.plot({'data': [trace0, trace1],
-                     'layout': layout},
-                    config=dict(modeBarButtonsToRemove=['sendDataToCloud'],
-                                showLink=False, displayModeBar=False,),
-                    filename='./lost_time.html')
 
 
 def print_statistics(merged, morning, evening, metric='mean'):
@@ -336,9 +126,11 @@ def main():
     df['distance'] = df['distance'].apply(distance_conversion)
     df = remove_weekends(df)
     evening, morning = time_aggregator(df)
-    merged = total_commute_minutes_plot(morning, evening)
+    merged = merge_morning_evening_data(morning, evening)
     mean_commute_time_plot(morning, evening)
     daily_commute_time_plot(df)
+    commute_distance_variation_plot(df)
+    total_commute_minutes_plot(merged)
     lost_time_plot(merged)
     print_statistics(merged, morning, evening)
 

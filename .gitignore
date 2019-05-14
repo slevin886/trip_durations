@@ -1,3 +1,5 @@
+.idea/
+__pycache__/
 *.csv
 *.pem
 *.ipynb_checkpoints/
@@ -5,3 +7,4 @@
 google_api.py
 google_api.pyc
 /venv
+data_play.ipynb
